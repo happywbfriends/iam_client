@@ -1,5 +1,5 @@
 module github.com/happywbfriends/iam_client
 
-go 1.21.5
+go 1.21
 
 require github.com/pkg/errors v0.9.1
