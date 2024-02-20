@@ -69,6 +69,10 @@ func (c *Service) AuthMiddlewareHandler(next http.Handler) http.Handler {
 		}
 
 		// Получен не 200 и не 401, отдаем статус как есть
-		w.WriteHeader(resp.HttpStatus)
+		if resp.HttpStatus != 0 {
+			w.WriteHeader(resp.HttpStatus)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	})
 }
