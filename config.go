@@ -1,4 +1,4 @@
-package main
+package iam_client
 
 type Config struct {
 	// URL сервиса IAM

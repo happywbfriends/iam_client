@@ -1,4 +1,4 @@
-package main
+package iam_client
 
 type Logger interface {
 	Debugf(f string, v ...interface{})
