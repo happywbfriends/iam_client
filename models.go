@@ -39,3 +39,11 @@ type IAMGetTokenPermissionsResponse struct {
 	// RedirectUrl Ссылка на аутентификацию в Keycloak
 	RedirectUrl string `json:"redirect_url"`
 }
+
+type IAMGetAccessKeyPermissionsRequest struct {
+	// Key Ключ доступа
+	Key string `json:"key"`
+
+	// ServiceId ID сервиса, к которому создаем или отбираем доступ
+	ServiceId string `json:"service_id"`
+}

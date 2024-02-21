@@ -119,6 +119,8 @@ func (c *IamClient) GetTokenPermissions(tokenId, serviceId, backURL string) (res
 		return
 	}
 
+	resp.HttpStatus = httpResp.StatusCode
+
 	if httpResp.StatusCode != http.StatusOK {
 		c.log.Errorf("b21Hos4IwNoigYu non-200 status from %s: %d", uri, httpResp.StatusCode)
 		return
@@ -143,6 +145,54 @@ func (c *IamClient) GetTokenPermissions(tokenId, serviceId, backURL string) (res
 			c.log.Errorf("8Wey25Pxx42phIN Invalid auth link from IAM '%s', error: %s", resp.RedirectUrl, err)
 			return
 		}
+	}
+
+	return
+}
+
+// GetAccessKeyPermissions обращается на ручку IAM /api/v2/getAccessKeyPermissions
+func (c *IamClient) GetAccessKeyPermissions(key, serviceId string) (resp IAMGetTokenPermissionsResponse, err error) {
+	request, err := json.Marshal(IAMGetAccessKeyPermissionsRequest{
+		Key:       key,
+		ServiceId: serviceId,
+	})
+	if err != nil {
+		c.log.Errorf("q98SE7hiSGtmXnS %s", err)
+		return
+	}
+
+	uri := fmt.Sprintf("%s/api/v2/getAccessKeyPermissions", c.iamURL)
+	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(request))
+	if err != nil {
+		c.log.Errorf("7t5X2y1tXk7NFXf %s", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	httpResp, err := c.httpClient.Do(req)
+	if err != nil {
+		c.log.Errorf("m70Q5MfSHRslO10 %s", err)
+		return
+	}
+
+	resp.HttpStatus = httpResp.StatusCode
+
+	if httpResp.StatusCode != http.StatusOK {
+		c.log.Errorf("v6067JKnBcITSfT non-200 status from %s: %d", uri, httpResp.StatusCode)
+		return
+	}
+
+	defer httpResp.Body.Close()
+	body, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		c.log.Errorf("3M6x29xVR1zIVPQ %s", err)
+		return
+	}
+
+	err = json.Unmarshal(body, &resp)
+	if err != nil {
+		c.log.Errorf("ksH52NcV3ITXWDL %s", err)
+		return
 	}
 
 	return
