@@ -16,6 +16,8 @@ const (
 	CookieName_UserName  = "UserName"
 )
 
+var ErrEmptyReferer = errors.New("Empty referer")
+
 type ctxIamPermissions struct{}
 
 func New(serviceId string, cfg Config, logger Logger) *Service {
@@ -54,6 +56,7 @@ func (c *Service) setTokenIdHandler() http.Handler {
 		if code == "" {
 			c.log.Errorf("empty code param")
 			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte("empty code param"))
 			return
 		}
 		finalBackURL := q.Get("finalBackURL")
@@ -61,6 +64,7 @@ func (c *Service) setTokenIdHandler() http.Handler {
 		if err != nil {
 			c.log.Errorf("Wd8015Wu3iPlzZA %s", err)
 			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte("incorrect finalBackURL"))
 			return
 		}
 
@@ -87,7 +91,7 @@ func (c *Service) getBackURL(r *http.Request) (string, error) {
 	// URL, на который надо будет финально вернуть пользователя в самом конце цепочки
 	finalBackURL := r.Referer()
 	if finalBackURL == "" {
-		return "", errors.New("Empty referrer")
+		return "", ErrEmptyReferer
 	}
 
 	// URL текущего запроса к АПИ, на него надо будет вернуть пользователя после успешной аутентифицикации в IAM

@@ -2,6 +2,7 @@ package iam_client
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 )
@@ -66,6 +67,12 @@ func (s *Service) AuthMiddlewareHandler(next http.Handler) http.Handler {
 		// URL, на который IAM вернет пользователя после успешной аутентифицикации
 		backURL, err := s.getBackURL(r)
 		if err != nil {
+			if errors.Is(err, ErrEmptyReferer) {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(ErrEmptyReferer.Error()))
+				return
+			}
+
 			s.log.Errorf("s4F9pAY2DugXZd0 %s", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
