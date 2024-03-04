@@ -47,3 +47,12 @@ type IAMGetAccessKeyPermissionsRequest struct {
 	// ServiceId ID сервиса, к которому создаем или отбираем доступ
 	ServiceId string `json:"service_id"`
 }
+
+type IAMIsTokenValidRequest struct {
+	// Id ID токена
+	Id string `json:"id"`
+}
+
+type IAMResponseSuccess struct {
+	Success bool `json:"success"`
+}

@@ -197,3 +197,48 @@ func (c *IamClient) GetAccessKeyPermissions(key, serviceId string) (resp IAMGetT
 
 	return
 }
+
+// GetTokenPermissions обращается на ручку IAM /api/v2/isTokenValid
+func (c *IamClient) IsTokenValid(tokenId string) (resp IAMResponseSuccess, err error) {
+	request, err := json.Marshal(IAMIsTokenValidRequest{
+		Id: tokenId,
+	})
+	if err != nil {
+		c.log.Errorf("fD03yh1rjphQhYq %s", err)
+		return
+	}
+
+	uri := fmt.Sprintf("%s/api/v2/isTokenValid", c.iamURL)
+	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(request))
+	if err != nil {
+		c.log.Errorf("7UGjf18s83ynx7i %s", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	httpResp, err := c.httpClient.Do(req)
+	if err != nil {
+		c.log.Errorf("iZ7097HnWDdiC4C %s", err)
+		return
+	}
+
+	if httpResp.StatusCode != http.StatusOK {
+		c.log.Errorf("3G0S9nvGt6FUM9A non-200 status from %s: %d", uri, httpResp.StatusCode)
+		return
+	}
+
+	defer httpResp.Body.Close()
+	body, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		c.log.Errorf("8F4p6oT6mg5R4E7 %s", err)
+		return
+	}
+
+	err = json.Unmarshal(body, &resp)
+	if err != nil {
+		c.log.Errorf("tW785Mx4iL9HZnp %s", err)
+		return
+	}
+
+	return
+}

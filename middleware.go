@@ -124,3 +124,74 @@ func (s *Service) AuthMiddlewareHandler(next http.Handler) http.Handler {
 		w.WriteHeader(resp.HttpStatus)
 	})
 }
+
+// SimpleAuthMiddlewareHandler отличается от AuthMiddlewareHandler тем, что не запрашивает у IAM права доступа к конкретному сервису.
+// Вместо этого у IAM проверяется лишь то, что у пользователя валидный ID токена в куках.
+// Этот метод понадобился для самой админки IAM, в которой есть ручка /iam/v2/permissions - доступ к ней должен быть закрыт кейклоком,
+// но при этом пользовательские запросы к ней не привязаны к конкретному сервису.
+// Эта middleware работает только с куками, ключи доступа в ней не обрабатываются.
+// Эта middleware не выставляет статус 403. Возможны только 200, 401 и 503.
+func (s *Service) SimpleAuthMiddlewareHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Авторизация пользователя (user2app)
+		// Если это запрос после аутентификации в IAM, обрабатываем его
+		q := r.URL.Query()
+		code := q.Get("code")
+		finalBackURL := q.Get("finalBackURL")
+		if code != "" && finalBackURL != "" {
+			s.setTokenIdHandler().ServeHTTP(w, r)
+			return
+		}
+
+		// URL, на который IAM вернет пользователя после успешной аутентифицикации
+		backURL, err := s.getBackURL(r)
+		if err != nil {
+			if errors.Is(err, ErrEmptyReferer) {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(ErrEmptyReferer.Error()))
+				return
+			}
+
+			s.log.Errorf("s4F9pAY2DugXZd0 %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// Проверяем id токена в куках
+		tokenIdCk, err := r.Cookie(CookieName_TokenId)
+		if err != nil {
+			// Куки нет, дергаем ручку IAM getAuthLink и отдаем 401 со ссылкой в ответе
+			authLinkResponse, err := s.iamClient.GetAuthLink(backURL)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			s.returnRedirectJSON(w, authLinkResponse.RedirectUrl)
+			return
+		}
+
+		// Кука есть - запрашиваем у IAM пермишены по ручке getTokenPermissions
+		tokenId, err := url.QueryUnescape(tokenIdCk.Value)
+		if err != nil {
+			s.log.Errorf("91sfK8v3s0QB5k9 %s", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		resp, err := s.iamClient.IsTokenValid(tokenId)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// Токен невалиден, отдаем 401
+		if !resp.Success {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// Токен валиден, пропускаем
+		next.ServeHTTP(w, r)
+	})
+}
