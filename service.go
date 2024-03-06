@@ -3,6 +3,7 @@ package iam_client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -19,6 +20,7 @@ const (
 var ErrEmptyReferer = errors.New("Empty referer")
 
 type ctxIamPermissions struct{}
+type ctxIamUserId struct{}
 
 func New(serviceId string, cfg Config, logger Logger) *Service {
 	return NewWithHTTPClient(serviceId, cfg, logger, http.DefaultClient)
@@ -149,4 +151,8 @@ func (s *Service) GetPermissions(ctx context.Context) []string {
 
 	s.log.Errorf("3K6cK2r2uQV2Jx3 Invalid IamPermissions in context: '%v'", permissions)
 	return nil
+}
+
+func (s *Service) GetUserId(ctx context.Context) string {
+	return fmt.Sprintf("%s", ctx.Value(ctxIamUserId{}))
 }

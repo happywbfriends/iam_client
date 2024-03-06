@@ -9,6 +9,7 @@ import (
 
 const (
 	HeaderAccessKey = "X-Access-Key"
+	HeaderClientId  = "X-Client-Id"
 )
 
 // AuthAccessKey авторизовывает приложение по хедеру X-Access-Key
@@ -33,6 +34,9 @@ func (s *Service) AuthAccessKey(w http.ResponseWriter, r *http.Request, next htt
 	// Все хорошо, кладем права в контекст и идем дальше
 	if resp.HttpStatus == http.StatusOK {
 		r = r.WithContext(context.WithValue(r.Context(), ctxIamPermissions{}, resp.Permissions))
+
+		// Добавляем заголовок X-User-Id как userId
+		r = r.WithContext(context.WithValue(r.Context(), ctxIamUserId{}, r.Header.Get(HeaderClientId)))
 
 		next.ServeHTTP(w, r)
 		return
@@ -115,6 +119,20 @@ func (s *Service) AuthMiddlewareHandler(next http.Handler) http.Handler {
 		// Все хорошо, кладем права в контекст и идем дальше
 		if resp.HttpStatus == http.StatusOK {
 			r = r.WithContext(context.WithValue(r.Context(), ctxIamPermissions{}, resp.Permissions))
+
+			// Добавляем содержимое куки CookieName_UserEmail как userId
+			var userEmail string
+			userEmailCk, err := r.Cookie(CookieName_UserEmail)
+			if err != nil {
+				// Такого быть не должно ругнемся в лог
+				s.log.Errorf("No cookie %s", CookieName_UserEmail)
+			} else {
+				userEmail, err = url.QueryUnescape(userEmailCk.Value)
+				if err != nil {
+					s.log.Errorf("6k5X83JDf2cI11V %s", err)
+				}
+			}
+			r = r.WithContext(context.WithValue(r.Context(), ctxIamUserId{}, userEmail))
 
 			next.ServeHTTP(w, r)
 			return
