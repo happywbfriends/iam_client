@@ -27,7 +27,7 @@ func New(serviceId string, cfg Config, logger Logger) *Service {
 func NewWithHTTPClient(serviceId string, cfg Config, logger Logger, httpClient *http.Client) *Service {
 	return &Service{
 		log:       logger,
-		iamClient: NewIamClient(cfg.IamUrl, logger, httpClient),
+		iamClient: NewIamClient(serviceId, cfg.IamUrl, logger, httpClient),
 		serviceId: serviceId,
 	}
 }

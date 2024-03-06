@@ -9,11 +9,12 @@ import (
 	"net/url"
 )
 
-func NewIamClient(iamURL string, logger Logger, httpClient *http.Client) *IamClient {
+func NewIamClient(serviceId, iamURL string, logger Logger, httpClient *http.Client) *IamClient {
 	return &IamClient{
 		httpClient: httpClient,
 		log:        logger,
 		iamURL:     iamURL,
+		serviceId:  serviceId,
 	}
 }
 
@@ -21,6 +22,8 @@ type IamClient struct {
 	httpClient *http.Client
 	log        Logger
 	iamURL     string
+	// serviceId имя сервиса, в котором используется клиент IAM
+	serviceId string
 }
 
 func (c *IamClient) SetHTTPClient(httpClient *http.Client) {
@@ -168,6 +171,7 @@ func (c *IamClient) GetAccessKeyPermissions(key, serviceId string) (resp IAMGetT
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Client-Id", c.serviceId)
 
 	httpResp, err := c.httpClient.Do(req)
 	if err != nil {
