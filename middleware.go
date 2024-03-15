@@ -48,6 +48,38 @@ func (s *Service) AuthAccessKey(w http.ResponseWriter, r *http.Request, next htt
 	return
 }
 
+// AuthAccessKeyMiddlewareHandler миддлварь для строгой проверки доступа по ключу
+func (s *Service) AuthAccessKeyMiddlewareHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		accessKey := r.Header.Get(HeaderAccessKey)
+		if accessKey == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// Запрашиваем у IAM пермишены
+		resp, err := s.iamClient.GetAccessKeyPermissions(accessKey, s.serviceId)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// Все хорошо, кладем права в контекст и идем дальше
+		if resp.HttpStatus == http.StatusOK {
+			r = r.WithContext(context.WithValue(r.Context(), ctxIamPermissions{}, resp.Permissions))
+
+			// Добавляем заголовок X-User-Id как userId
+			r = r.WithContext(context.WithValue(r.Context(), ctxIamUserId{}, r.Header.Get(HeaderClientId)))
+
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Получен не 200, отдаем статус как есть
+		w.WriteHeader(resp.HttpStatus)
+	})
+}
+
 // AuthMiddlewareHandler
 func (s *Service) AuthMiddlewareHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
