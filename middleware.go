@@ -2,9 +2,10 @@ package iam_client
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/url"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -48,36 +49,31 @@ func (s *Service) AuthAccessKey(w http.ResponseWriter, r *http.Request, next htt
 	return
 }
 
-// AuthAccessKeyMiddlewareHandler миддлварь для строгой проверки доступа по ключу
-func (s *Service) AuthAccessKeyMiddlewareHandler(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		accessKey := r.Header.Get(HeaderAccessKey)
-		if accessKey == "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
+// AuthAccessKeyMiddleware миддлварь для строгой проверки доступа по ключу
+func (s *Service) AuthAccessKeyMiddleware(_ http.ResponseWriter, r *http.Request) error {
+	accessKey := r.Header.Get(HeaderAccessKey)
+	if accessKey == "" {
+		return errors.New("X-Access-Key is missing")
+	}
 
-		// Запрашиваем у IAM пермишены
-		resp, err := s.iamClient.GetAccessKeyPermissions(accessKey, s.serviceId)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+	// Запрашиваем у IAM пермишены
+	resp, err := s.iamClient.GetAccessKeyPermissions(accessKey, s.serviceId)
+	if err != nil {
+		return err
+	}
 
-		// Все хорошо, кладем права в контекст и идем дальше
-		if resp.HttpStatus == http.StatusOK {
-			r = r.WithContext(context.WithValue(r.Context(), ctxIamPermissions{}, resp.Permissions))
+	// Получен не 200, отдаем статус как есть
+	if resp.HttpStatus != http.StatusOK {
+		return errors.Errorf("unauthorized: %d", resp.HttpStatus)
+	}
 
-			// Добавляем заголовок X-User-Id как userId
-			r = r.WithContext(context.WithValue(r.Context(), ctxIamUserId{}, r.Header.Get(HeaderClientId)))
+	// Все хорошо, кладем права в контекст и идем дальше
+	r = r.WithContext(context.WithValue(r.Context(), ctxIamPermissions{}, resp.Permissions))
 
-			next.ServeHTTP(w, r)
-			return
-		}
+	// Добавляем заголовок X-User-Id как userId
+	r = r.WithContext(context.WithValue(r.Context(), ctxIamUserId{}, r.Header.Get(HeaderClientId)))
 
-		// Получен не 200, отдаем статус как есть
-		w.WriteHeader(resp.HttpStatus)
-	})
+	return nil
 }
 
 // AuthMiddlewareHandler
