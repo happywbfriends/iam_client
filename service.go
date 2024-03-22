@@ -19,8 +19,8 @@ const (
 
 var ErrEmptyReferer = errors.New("Empty referer")
 
-type ctxIamPermissions struct{}
-type ctxIamUserId struct{}
+type CtxIamPermissions struct{}
+type CtxIamUserId struct{}
 
 func New(serviceId string, cfg Config, logger Logger) *Service {
 	return NewWithHTTPClient(serviceId, cfg, logger, http.DefaultClient)
@@ -144,7 +144,7 @@ func (s *Service) setCookie(w http.ResponseWriter, r *http.Request, name, value 
 }
 
 func (s *Service) GetPermissions(ctx context.Context) []string {
-	permissions := ctx.Value(ctxIamPermissions{})
+	permissions := ctx.Value(CtxIamPermissions{})
 	if result, ok := permissions.([]string); ok {
 		return result
 	}
@@ -154,5 +154,5 @@ func (s *Service) GetPermissions(ctx context.Context) []string {
 }
 
 func (s *Service) GetUserId(ctx context.Context) string {
-	return fmt.Sprintf("%s", ctx.Value(ctxIamUserId{}))
+	return fmt.Sprintf("%s", ctx.Value(CtxIamUserId{}))
 }

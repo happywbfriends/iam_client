@@ -34,10 +34,10 @@ func (s *Service) AuthAccessKey(w http.ResponseWriter, r *http.Request, next htt
 
 	// Все хорошо, кладем права в контекст и идем дальше
 	if resp.HttpStatus == http.StatusOK {
-		r = r.WithContext(context.WithValue(r.Context(), ctxIamPermissions{}, resp.Permissions))
+		r = r.WithContext(context.WithValue(r.Context(), CtxIamPermissions{}, resp.Permissions))
 
 		// Добавляем заголовок X-User-Id как userId
-		r = r.WithContext(context.WithValue(r.Context(), ctxIamUserId{}, r.Header.Get(HeaderClientId)))
+		r = r.WithContext(context.WithValue(r.Context(), CtxIamUserId{}, r.Header.Get(HeaderClientId)))
 
 		next.ServeHTTP(w, r)
 		return
@@ -68,10 +68,10 @@ func (s *Service) AuthAccessKeyMiddleware(_ http.ResponseWriter, r *http.Request
 	}
 
 	// Все хорошо, кладем права в контекст и идем дальше
-	r = r.WithContext(context.WithValue(r.Context(), ctxIamPermissions{}, resp.Permissions))
+	r = r.WithContext(context.WithValue(r.Context(), CtxIamPermissions{}, resp.Permissions))
 
 	// Добавляем заголовок X-User-Id как userId
-	r = r.WithContext(context.WithValue(r.Context(), ctxIamUserId{}, r.Header.Get(HeaderClientId)))
+	r = r.WithContext(context.WithValue(r.Context(), CtxIamUserId{}, r.Header.Get(HeaderClientId)))
 
 	return r, nil
 }
@@ -146,7 +146,7 @@ func (s *Service) AuthMiddlewareHandler(next http.Handler) http.Handler {
 
 		// Все хорошо, кладем права в контекст и идем дальше
 		if resp.HttpStatus == http.StatusOK {
-			r = r.WithContext(context.WithValue(r.Context(), ctxIamPermissions{}, resp.Permissions))
+			r = r.WithContext(context.WithValue(r.Context(), CtxIamPermissions{}, resp.Permissions))
 
 			// Добавляем содержимое куки CookieName_UserEmail как userId
 			var userEmail string
@@ -160,7 +160,7 @@ func (s *Service) AuthMiddlewareHandler(next http.Handler) http.Handler {
 					s.log.Errorf("6k5X83JDf2cI11V %s", err)
 				}
 			}
-			r = r.WithContext(context.WithValue(r.Context(), ctxIamUserId{}, userEmail))
+			r = r.WithContext(context.WithValue(r.Context(), CtxIamUserId{}, userEmail))
 
 			next.ServeHTTP(w, r)
 			return
@@ -240,4 +240,65 @@ func (s *Service) SimpleAuthMiddlewareHandler(next http.Handler) http.Handler {
 		// Токен валиден, пропускаем
 		next.ServeHTTP(w, r)
 	})
+}
+
+// AuthPermissionsHandler проверяет права доступа к конкретным ручкам. Вызывается после аутентификации в IAM-клиенте.
+// С правом доступа "admin:*" пускает ко всем ручкам
+// С правом доступа "view:*" пускает ко всем GET-ручкам
+// Для всех остальных прав применяется матрица доступа map[string][]string вида
+// METHOD/URL => []string{ALLOWED_PERMISSION1, ALLOWED_PERMISSION2, ...}
+// Например:
+// POST/api/v2/admin/grant => []string{"admin:activate", "admin:promote"}
+func (s *Service) AuthPermissionsHandler(permissionsMatrix map[string][]string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		userPermissions := s.GetPermissions(ctx)
+		if len(userPermissions) == 0 {
+			// Такого быть не должно, но на всякий случай обработаем в явном виде
+			s.log.Errorf("Empty permissions from IAM client")
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+
+		// Доступ к сервису есть, добавляем id юзера в контекст
+		r = r.WithContext(context.WithValue(ctx, CtxIamUserId{}, s.GetUserId(ctx)))
+
+		// С админскими правами пропускаем ко всем ручкам
+		if InArray(userPermissions, "admin:*") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// С полными правами на просмотр пропускаем ко всем GET-ручкам
+		if r.Method == http.MethodGet && InArray(userPermissions, "view:*") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Ищем в матрице особые разрешения для данной ручки
+		allowedPermissions, found := permissionsMatrix[r.Method+r.URL.Path]
+		if !found {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+
+		// У ручки есть список особых разрешений, проверяем, есть ли у юзера доступ из этого списка
+		for _, permission := range userPermissions {
+			if InArray(allowedPermissions, permission) {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		w.WriteHeader(http.StatusForbidden)
+	})
+}
+
+func InArray[T comparable](a []T, x T) bool {
+	for i := 0; i < len(a); i++ {
+		if a[i] == x {
+			return true
+		}
+	}
+	return false
 }
