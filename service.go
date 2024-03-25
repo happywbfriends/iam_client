@@ -143,16 +143,15 @@ func (s *Service) setCookie(w http.ResponseWriter, r *http.Request, name, value 
 	http.SetCookie(w, ck)
 }
 
-func (s *Service) GetPermissions(ctx context.Context) []string {
+func GetPermissions(ctx context.Context) []string {
 	permissions := ctx.Value(CtxIamPermissions{})
 	if result, ok := permissions.([]string); ok {
 		return result
 	}
 
-	s.log.Errorf("3K6cK2r2uQV2Jx3 Invalid IamPermissions in context: '%v'", permissions)
 	return nil
 }
 
-func (s *Service) GetUserId(ctx context.Context) string {
+func GetUserId(ctx context.Context) string {
 	return fmt.Sprintf("%s", ctx.Value(CtxIamUserId{}))
 }
