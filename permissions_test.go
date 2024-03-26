@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/mux"
 )
 
@@ -110,7 +111,7 @@ func TestPermissionsChecker_checkUserPermission(t *testing.T) {
 	}
 }
 
-func TestPermissionsChecker_getAllowedPermissions(t *testing.T) {
+func TestPermissionsChecker_getAllowedPermissionsWithGorillaMuxRouter(t *testing.T) {
 	// Общий router
 	router := mux.NewRouter().StrictSlash(true).PathPrefix("/").Subrouter()
 	router.HandleFunc("/api/v1/admin/auth-services/{id}/activate", nil).Methods("POST")
@@ -123,7 +124,7 @@ func TestPermissionsChecker_getAllowedPermissions(t *testing.T) {
 		name              string
 		permissionsMatrix map[string][]string
 		args              args
-		router            *mux.Router
+		gorillaMuxRouter  *mux.Router
 		want              []string
 	}{
 		{
@@ -132,7 +133,7 @@ func TestPermissionsChecker_getAllowedPermissions(t *testing.T) {
 				"GET/api/v1/admin/actionLog":     []string{"view:log", "admin"},
 				"GET/api/v1/admin/auth-services": []string{"admin"},
 			},
-			router: router,
+			gorillaMuxRouter: router,
 			args: args{
 				method: "GET",
 				path:   "/api/v1/admin/actionLog",
@@ -146,7 +147,7 @@ func TestPermissionsChecker_getAllowedPermissions(t *testing.T) {
 				"GET/api/v1/admin/actionLog":     []string{"view:log", "admin"},
 				"GET/api/v1/admin/auth-services": []string{"admin"},
 			},
-			router: router,
+			gorillaMuxRouter: router,
 			args: args{
 				method: "GET",
 				path:   "/api/v1/admin/categories",
@@ -160,7 +161,7 @@ func TestPermissionsChecker_getAllowedPermissions(t *testing.T) {
 				"POST/api/v1/admin/auth-services/{id}/activate": []string{"admin:activate"},
 				"GET/api/v1/admin/auth-services":                []string{"admin"},
 			},
-			router: router,
+			gorillaMuxRouter: router,
 			args: args{
 				method: "POST",
 				path:   "/api/v1/admin/auth-services/123/activate",
@@ -174,7 +175,7 @@ func TestPermissionsChecker_getAllowedPermissions(t *testing.T) {
 				"POST/api/v1/admin/auth-services/{id}/activate": []string{"admin:activate"},
 				"GET/api/v1/admin/auth-services":                []string{"admin"},
 			},
-			router: nil,
+			gorillaMuxRouter: nil,
 			args: args{
 				method: "POST",
 				path:   "/api/v1/admin/auth-services/123/activate",
@@ -189,7 +190,95 @@ func TestPermissionsChecker_getAllowedPermissions(t *testing.T) {
 				Method: tt.args.method,
 				URL:    &url.URL{Path: tt.args.path},
 			}
-			p.WithMuxRouter(tt.router)
+			p.WithGorillaMuxRouter(tt.gorillaMuxRouter)
+
+			if got := p.getAllowedPermissions(&r); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("getAllowedPermissions() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPermissionsChecker_getAllowedPermissionsWithChiMuxRouter(t *testing.T) {
+	// Общий router
+	router := chi.NewRouter()
+	router.Post("/api/v1/admin/auth-services/{id}/activate", nil)
+
+	type args struct {
+		method string
+		path   string
+	}
+	tests := []struct {
+		name              string
+		permissionsMatrix map[string][]string
+		args              args
+		chiMuxRouter      *chi.Mux
+		want              []string
+	}{
+		{
+			name: "Simple path with some permissions",
+			permissionsMatrix: map[string][]string{
+				"GET/api/v1/admin/actionLog":     []string{"view:log", "admin"},
+				"GET/api/v1/admin/auth-services": []string{"admin"},
+			},
+			chiMuxRouter: router,
+			args: args{
+				method: "GET",
+				path:   "/api/v1/admin/actionLog",
+			},
+			want: []string{"view:log", "admin"},
+		},
+
+		{
+			name: "Simple path without particular permissions",
+			permissionsMatrix: map[string][]string{
+				"GET/api/v1/admin/actionLog":     []string{"view:log", "admin"},
+				"GET/api/v1/admin/auth-services": []string{"admin"},
+			},
+			chiMuxRouter: router,
+			args: args{
+				method: "GET",
+				path:   "/api/v1/admin/categories",
+			},
+			want: nil,
+		},
+
+		{
+			name: "Complex path with some permissions",
+			permissionsMatrix: map[string][]string{
+				"POST/api/v1/admin/auth-services/{id}/activate": []string{"admin:activate"},
+				"GET/api/v1/admin/auth-services":                []string{"admin"},
+			},
+			chiMuxRouter: router,
+			args: args{
+				method: "POST",
+				path:   "/api/v1/admin/auth-services/123/activate",
+			},
+			want: []string{"admin:activate"},
+		},
+
+		{
+			name: "Complex path with some permissions without mux router (won't detect a path with curly brackets)",
+			permissionsMatrix: map[string][]string{
+				"POST/api/v1/admin/auth-services/{id}/activate": []string{"admin:activate"},
+				"GET/api/v1/admin/auth-services":                []string{"admin"},
+			},
+			chiMuxRouter: nil,
+			args: args{
+				method: "POST",
+				path:   "/api/v1/admin/auth-services/123/activate",
+			},
+			want: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := NewPermissionsChecker(tt.permissionsMatrix, nil)
+			r := http.Request{
+				Method: tt.args.method,
+				URL:    &url.URL{Path: tt.args.path},
+			}
+			p.WithChiMuxRouter(tt.chiMuxRouter)
 
 			if got := p.getAllowedPermissions(&r); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getAllowedPermissions() = %v, want %v", got, tt.want)

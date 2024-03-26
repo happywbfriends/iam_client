@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/mux"
 )
 
@@ -29,14 +30,22 @@ func NewPermissionsChecker(permissionsMatrix map[string][]string, log Logger) *P
 type PermissionsChecker struct {
 	permissionsMatrix map[string][]string
 	log               Logger
-	muxRouter         *mux.Router
+	gorillaMuxRouter  *mux.Router
+	chiMuxRouter      *chi.Mux
 }
 
-// WithMuxRouter принимает на вход объект *mux.Router и применяет его при поиске
+// WithGorillaMuxRouter принимает на вход объект *mux.Router и применяет его при поиске
 // путей в матрице доступа. Т.о. становится возможным указывать в матрице пути с макросами типа
 // "POST/api/v1/admin/auth-services/{id}/activate": []string{"admin:activate"}
-func (p *PermissionsChecker) WithMuxRouter(r *mux.Router) {
-	p.muxRouter = r
+func (p *PermissionsChecker) WithGorillaMuxRouter(r *mux.Router) {
+	p.gorillaMuxRouter = r
+}
+
+// WithChiMuxRouter принимает на вход объект *chi.Mux и применяет его при поиске
+// путей в матрице доступа. Т.о. становится возможным указывать в матрице пути с макросами типа
+// "POST/api/v1/admin/auth-services/{id}/activate": []string{"admin:activate"}
+func (p *PermissionsChecker) WithChiMuxRouter(r *chi.Mux) {
+	p.chiMuxRouter = r
 }
 
 // AuthMiddlewareHandler следует использовать после аутентификации в IAM-клиенте.
@@ -93,9 +102,9 @@ func (p *PermissionsChecker) getAllowedPermissions(r *http.Request) (allowedPerm
 		return
 	}
 
-	if p.muxRouter != nil {
+	if p.gorillaMuxRouter != nil {
 		match := mux.RouteMatch{}
-		routeExists := p.muxRouter.Match(r, &match)
+		routeExists := p.gorillaMuxRouter.Match(r, &match)
 		if routeExists {
 			path, err := match.Route.GetPathTemplate()
 			if err != nil {
@@ -103,6 +112,17 @@ func (p *PermissionsChecker) getAllowedPermissions(r *http.Request) (allowedPerm
 				return nil
 			}
 
+			allowedPermissions, found = p.permissionsMatrix[r.Method+path]
+			if found {
+				return
+			}
+		}
+	}
+
+	if p.chiMuxRouter != nil {
+		rctx := chi.NewRouteContext()
+		if p.chiMuxRouter.Match(rctx, r.Method, r.URL.Path) {
+			path := rctx.RoutePattern()
 			allowedPermissions, found = p.permissionsMatrix[r.Method+path]
 			if found {
 				return
