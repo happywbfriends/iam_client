@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/mux"
+	"github.com/labstack/echo/v4"
 )
 
 // NewPermissionsChecker возвращает объект типа Permissions, который
@@ -147,4 +148,49 @@ func (p *PermissionsChecker) checkUserPermission(allowedPermissions []string, us
 	}
 
 	return false
+}
+
+func (p *PermissionsChecker) EchoAuthMiddlewareHandler() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			r := c.Request()
+			ctx := r.Context()
+			userPermissions := GetPermissions(ctx)
+			if len(userPermissions) == 0 {
+				// Такого быть не должно, но на всякий случай обработаем в явном виде
+				p.log.Errorf("Empty permissions from IAM client")
+				c.String(http.StatusForbidden, "Forbidden")
+				return nil
+			}
+
+			// Доступ к сервису в принципе есть, добавляем id юзера в контекст
+			r = r.WithContext(context.WithValue(ctx, CtxIamUserId{}, GetUserId(ctx)))
+			c.SetRequest(r)
+
+			// С админскими правами пропускаем ко всем ручкам
+			if InArray(userPermissions, "admin:*") {
+				return next(c)
+			}
+
+			// С полными правами на просмотр пропускаем ко всем GET-ручкам
+			if r.Method == http.MethodGet && InArray(userPermissions, "view:*") {
+				return next(c)
+			}
+
+			// Ищем в матрице особые разрешения для данной ручки
+			allowedPermissions := p.getAllowedPermissions(r)
+			if allowedPermissions == nil {
+				c.String(http.StatusForbidden, "Forbidden")
+				return nil
+			}
+
+			// У ручки нашлись особые разрешения, проверяем
+			if p.checkUserPermission(allowedPermissions, userPermissions) {
+				return next(c)
+			}
+
+			c.String(http.StatusForbidden, "Forbidden")
+			return nil
+		}
+	}
 }

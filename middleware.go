@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/labstack/echo/v4"
 	"github.com/pkg/errors"
 )
 
@@ -249,4 +250,145 @@ func InArray[T comparable](a []T, x T) bool {
 		}
 	}
 	return false
+}
+
+func (s *Service) EchoAuthAccessKey(c echo.Context, next echo.HandlerFunc) (processed bool, err error) {
+	r := c.Request()
+
+	// Проверяем наличие хедеров X-Access-Key
+	accessKey := r.Header.Get(HeaderAccessKey)
+	if accessKey == "" {
+		return
+	}
+
+	// Ключ в хедере есть, полностью берем обработку запроса на себя
+	processed = true
+
+	// Запрашиваем у IAM пермишены
+	resp, err := s.iamClient.GetAccessKeyPermissions(accessKey, s.serviceId)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Internal Server Error")
+		return
+	}
+
+	// Все хорошо, кладем права в контекст и идем дальше
+	if resp.HttpStatus == http.StatusOK {
+		r = r.WithContext(context.WithValue(r.Context(), CtxIamPermissions{}, resp.Permissions))
+
+		// Добавляем заголовок X-User-Id как userId
+		r = r.WithContext(context.WithValue(r.Context(), CtxIamUserId{}, r.Header.Get(HeaderClientId)))
+
+		c.SetRequest(r)
+
+		err = next(c)
+		return
+	}
+
+	// Получен не 200, отдаем статус как есть
+	c.String(resp.HttpStatus, "")
+
+	return
+}
+
+func (s *Service) EchoAuthMiddlewareHandler() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			// Шаг 1. Авторизация приложения по ключу доступа (app2app)
+			// Схема авторизации app2app отличается от user2app в основном тем,
+			// что в ней нет редиректа в IAM за аутентификацией
+			processed, err := s.EchoAuthAccessKey(c, next)
+			if processed {
+				return err
+			}
+
+			r := c.Request()
+			w := c.Response().Writer
+
+			// Шаг 2. Авторизация пользователя (user2app)
+			// Если это запрос после аутентификации в IAM, обрабатываем его
+			q := r.URL.Query()
+			code := q.Get("code")
+			finalBackURL := q.Get("finalBackURL")
+			if code != "" && finalBackURL != "" {
+				s.setTokenIdHandler().ServeHTTP(w, r)
+				return nil
+			}
+
+			// URL, на который IAM вернет пользователя после успешной аутентифицикации
+			backURL, err := s.getBackURL(r)
+			if err != nil {
+				if errors.Is(err, ErrEmptyReferer) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(ErrEmptyReferer.Error()))
+					return nil
+				}
+
+				s.log.Errorf("s4F9pAY2DugXZd0 %s", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return nil
+			}
+
+			// Проверяем id токена в куках
+			tokenIdCk, err := r.Cookie(CookieName_TokenId)
+			if err != nil {
+				// Куки нет, дергаем ручку IAM getAuthLink и отдаем 401 со ссылкой в ответе
+				authLinkResponse, err := s.iamClient.GetAuthLink(backURL)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return nil
+				}
+
+				s.returnRedirectJSON(w, authLinkResponse.RedirectUrl)
+				return nil
+			}
+
+			// Кука есть - запрашиваем у IAM пермишены по ручке getTokenPermissions
+			tokenId, err := url.QueryUnescape(tokenIdCk.Value)
+			if err != nil {
+				s.log.Errorf("91sfK8v3s0QB5k9 %s", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return nil
+			}
+
+			resp, err := s.iamClient.GetTokenPermissions(tokenId, s.serviceId, backURL)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return nil
+			}
+
+			// Отправляем юзера на аутентификацию
+			if resp.HttpStatus == http.StatusUnauthorized {
+				s.returnRedirectJSON(w, resp.RedirectUrl)
+				return nil
+			}
+
+			// Все хорошо, кладем права в контекст и идем дальше
+			if resp.HttpStatus == http.StatusOK {
+				r = r.WithContext(context.WithValue(r.Context(), CtxIamPermissions{}, resp.Permissions))
+
+				// Добавляем содержимое куки CookieName_UserEmail как userId
+				var userEmail string
+				userEmailCk, err := r.Cookie(CookieName_UserEmail)
+				if err != nil {
+					// Такого быть не должно ругнемся в лог
+					s.log.Errorf("No cookie %s", CookieName_UserEmail)
+				} else {
+					userEmail, err = url.QueryUnescape(userEmailCk.Value)
+					if err != nil {
+						s.log.Errorf("6k5X83JDf2cI11V %s", err)
+					}
+				}
+				r = r.WithContext(context.WithValue(r.Context(), CtxIamUserId{}, userEmail))
+
+				c.SetRequest(r)
+
+				return next(c)
+			}
+
+			// Получен не 200 и не 401, отдаем статус как есть
+			w.WriteHeader(resp.HttpStatus)
+
+			return nil
+		}
+	}
 }
