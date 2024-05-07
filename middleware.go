@@ -11,7 +11,6 @@ import (
 
 const (
 	HeaderAccessKey = "X-Access-Key"
-	HeaderClientId  = "X-Client-Id"
 )
 
 // AuthAccessKey авторизовывает приложение по хедеру X-Access-Key
@@ -37,8 +36,7 @@ func (s *Service) AuthAccessKey(w http.ResponseWriter, r *http.Request, next htt
 	if resp.HttpStatus == http.StatusOK {
 		r = r.WithContext(context.WithValue(r.Context(), CtxIamPermissions{}, resp.Permissions))
 
-		// Добавляем заголовок X-User-Id как userId
-		r = r.WithContext(context.WithValue(r.Context(), CtxIamUserId{}, r.Header.Get(HeaderClientId)))
+		r = r.WithContext(context.WithValue(r.Context(), CtxIamUserId{}, resp.UserId))
 
 		next.ServeHTTP(w, r)
 		return
@@ -71,8 +69,7 @@ func (s *Service) AuthAccessKeyMiddleware(_ http.ResponseWriter, r *http.Request
 	// Все хорошо, кладем права в контекст и идем дальше
 	r = r.WithContext(context.WithValue(r.Context(), CtxIamPermissions{}, resp.Permissions))
 
-	// Добавляем заголовок X-User-Id как userId
-	r = r.WithContext(context.WithValue(r.Context(), CtxIamUserId{}, r.Header.Get(HeaderClientId)))
+	r = r.WithContext(context.WithValue(r.Context(), CtxIamUserId{}, resp.UserId))
 
 	return r, nil
 }
@@ -275,8 +272,7 @@ func (s *Service) EchoAuthAccessKey(c echo.Context, next echo.HandlerFunc) (proc
 	if resp.HttpStatus == http.StatusOK {
 		r = r.WithContext(context.WithValue(r.Context(), CtxIamPermissions{}, resp.Permissions))
 
-		// Добавляем заголовок X-User-Id как userId
-		r = r.WithContext(context.WithValue(r.Context(), CtxIamUserId{}, r.Header.Get(HeaderClientId)))
+		r = r.WithContext(context.WithValue(r.Context(), CtxIamUserId{}, resp.UserId))
 
 		c.SetRequest(r)
 

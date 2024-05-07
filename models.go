@@ -38,6 +38,9 @@ type IAMGetTokenPermissionsResponse struct {
 
 	// RedirectUrl Ссылка на аутентификацию в Keycloak
 	RedirectUrl string `json:"redirect_url"`
+
+	// UserId ID пользователя, которому выдан доступ. Это или email, или id приложения
+	UserId string `json:"user_id"`
 }
 
 type IAMGetAccessKeyPermissionsRequest struct {
