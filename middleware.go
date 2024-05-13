@@ -13,7 +13,7 @@ const (
 	HeaderAccessKey = "X-Access-Key"
 )
 
-// AuthAccessKey авторизовывает приложение по хедеру X-Access-Key
+// AuthAccessKey аутентифицирует приложение по хедеру X-Access-Key
 // Если хедер присутствуют, полностью берет обработку на себя, в этом случае возвращает true
 func (s *Service) AuthAccessKey(w http.ResponseWriter, r *http.Request, next http.Handler) (processed bool) {
 	// Проверяем наличие хедеров X-Access-Key
@@ -48,7 +48,7 @@ func (s *Service) AuthAccessKey(w http.ResponseWriter, r *http.Request, next htt
 	return
 }
 
-// AuthAccessKeyMiddleware миддлварь для строгой проверки доступа по ключу
+// AuthAccessKeyMiddleware миддлварь для проверки доступа только по ключу
 func (s *Service) AuthAccessKeyMiddleware(_ http.ResponseWriter, r *http.Request) (*http.Request, error) {
 	accessKey := r.Header.Get(HeaderAccessKey)
 	if accessKey == "" {
@@ -74,17 +74,17 @@ func (s *Service) AuthAccessKeyMiddleware(_ http.ResponseWriter, r *http.Request
 	return r, nil
 }
 
-// AuthMiddlewareHandler
+// AuthMiddlewareHandler выполняет аутентификацию пользователя (по ключу ИЛИ по кукам)
 func (s *Service) AuthMiddlewareHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Шаг 1. Авторизация приложения по ключу доступа (app2app)
-		// Схема авторизации app2app отличается от user2app в основном тем,
+		// Шаг 1. Аутентификация приложения по ключу доступа (app2app)
+		// Схема аутентификации app2app отличается от user2app в основном тем,
 		// что в ней нет редиректа в IAM за аутентификацией
 		if s.AuthAccessKey(w, r, next) {
 			return
 		}
 
-		// Шаг 2. Авторизация пользователя (user2app)
+		// Шаг 2. Аутентификация пользователя (user2app)
 		// Если это запрос после аутентификации в IAM, обрабатываем его
 		q := r.URL.Query()
 		code := q.Get("code")
@@ -136,7 +136,7 @@ func (s *Service) AuthMiddlewareHandler(next http.Handler) http.Handler {
 			return
 		}
 
-		// Отправляем юзера на аутентификацию
+		// Отправляем юзера на аутентификацию в IAM
 		if resp.HttpStatus == http.StatusUnauthorized {
 			s.returnRedirectJSON(w, resp.RedirectUrl)
 			return
@@ -249,6 +249,7 @@ func InArray[T comparable](a []T, x T) bool {
 	return false
 }
 
+// EchoAuthAccessKey - аналог AuthAccessKey, написанный под роутер echo
 func (s *Service) EchoAuthAccessKey(c echo.Context, next echo.HandlerFunc) (processed bool, err error) {
 	r := c.Request()
 
@@ -286,6 +287,7 @@ func (s *Service) EchoAuthAccessKey(c echo.Context, next echo.HandlerFunc) (proc
 	return
 }
 
+// EchoAuthMiddlewareHandler - аналог AuthMiddlewareHandler, написанный под роутер echo
 func (s *Service) EchoAuthMiddlewareHandler() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {

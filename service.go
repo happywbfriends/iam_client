@@ -22,10 +22,12 @@ var ErrEmptyReferer = errors.New("Empty referer")
 type CtxIamPermissions struct{}
 type CtxIamUserId struct{}
 
+// New создает объект сервиса со стандартным HTTP клиентом
 func New(serviceId string, cfg Config, logger Logger) *Service {
 	return NewWithHTTPClient(serviceId, cfg, logger, http.DefaultClient)
 }
 
+// NewWithHTTPClient создает объект сервиса с заранее созданным HTTP клиентом
 func NewWithHTTPClient(serviceId string, cfg Config, logger Logger, httpClient *http.Client) *Service {
 	return &Service{
 		log:       logger,
@@ -44,6 +46,7 @@ type link401 struct {
 	RedirectURL string `json:"redirect_url"`
 }
 
+// SetHTTPClient позволяет установить HTTP клиента уже после создания объекта сервиса
 func (s *Service) SetHTTPClient(httpClient *http.Client) {
 	s.iamClient.SetHTTPClient(httpClient)
 }

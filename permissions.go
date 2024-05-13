@@ -28,6 +28,7 @@ func NewPermissionsChecker(permissionsMatrix map[string][]string, log Logger) *P
 	return &p
 }
 
+// PermissionsChecker используется для проверки прав доступа к конкретным ручкам
 type PermissionsChecker struct {
 	permissionsMatrix map[string][]string
 	log               Logger
@@ -49,7 +50,7 @@ func (p *PermissionsChecker) WithChiMuxRouter(r *chi.Mux) {
 	p.chiMuxRouter = r
 }
 
-// AuthMiddlewareHandler следует использовать после аутентификации в IAM-клиенте.
+// AuthMiddlewareHandler должен использоваться после аутентификации в IAM-клиенте.
 // С правом доступа "admin:*" пускает ко всем ручкам.
 // С правом доступа "view:*" пускает ко всем GET-ручкам.
 // Для всех остальных прав применяется матрица доступа.
