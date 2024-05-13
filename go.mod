@@ -8,6 +8,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.12
 	github.com/gorilla/mux v1.8.1
 	github.com/labstack/echo/v4 v4.11.4
+	github.com/rs/zerolog v1.32.0
 )
 
 require (

@@ -15,15 +15,6 @@
 
 ## Подключение
 
-### Для работы требуется конфиг:
-
-````
-type Config struct {
-	// URL сервиса IAM
-	IamUrl string `env:"IAM_URL,required"`
-}
-````
-
 ### Nginx
 
 Пакет работает с использованием **secure** и **http-only** кук, поэтому фронт и бэк должны висеть на одном HTTPS-домене.
@@ -38,16 +29,6 @@ location /api/admin/ {
     }
 ````
 
-## Примеры использования
+### Примеры использования 
 
-Для роутеров, совместимых с net/http. На примере gorilla/mux
-
-````
-	iamClient := iam.New(cfg.IAMClient, log)
-    
-	r := mux.NewRouter().StrictSlash(true).PathPrefix("/").Subrouter()
-	v1 := r.PathPrefix("/api/v1/admin").Subrouter()
-	r.Use(
-	    iamClient.AuthMiddlewareHandler,
-	)
-````
+См. в директории examples
