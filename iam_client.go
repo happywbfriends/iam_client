@@ -38,13 +38,13 @@ func (c *IamClient) GetTokenId(code string) (resp IAMGetTokenIdResponse, err err
 		c.log.Errorf("1C6aVU4V4oy36y3 %s", err)
 		return
 	}
+	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
 		c.log.Errorf("31huD0zwS8ANHrN non-200 status from %s: %d", uri, httpResp.StatusCode)
 		return
 	}
 
-	defer httpResp.Body.Close()
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		c.log.Errorf("Xp114xR1HZE0bLK %s", err)
@@ -68,13 +68,13 @@ func (c *IamClient) GetAuthLink(backURL string) (resp IAMGetAuthLinkResponse, er
 		c.log.Errorf("eC2L08eZNsY9alR %s", err)
 		return
 	}
+	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
 		c.log.Errorf("vU4259mD2fXDCOq non-200 status from %s: %d", uri, httpResp.StatusCode)
 		return
 	}
 
-	defer httpResp.Body.Close()
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		c.log.Errorf("rd3MK52NFYTlB6u %s", err)
@@ -121,6 +121,7 @@ func (c *IamClient) GetTokenPermissions(tokenId, serviceId, backURL string) (res
 		c.log.Errorf("Cb7S95L71QoSz3P %s", err)
 		return
 	}
+	defer httpResp.Body.Close()
 
 	resp.HttpStatus = httpResp.StatusCode
 
@@ -129,7 +130,6 @@ func (c *IamClient) GetTokenPermissions(tokenId, serviceId, backURL string) (res
 		return
 	}
 
-	defer httpResp.Body.Close()
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		c.log.Errorf("pT00e5I9xhvvEtT %s", err)
@@ -178,6 +178,7 @@ func (c *IamClient) GetAccessKeyPermissions(key, serviceId string) (resp IAMGetT
 		c.log.Errorf("m70Q5MfSHRslO10 %s", err)
 		return
 	}
+	defer httpResp.Body.Close()
 
 	resp.HttpStatus = httpResp.StatusCode
 
@@ -186,7 +187,6 @@ func (c *IamClient) GetAccessKeyPermissions(key, serviceId string) (resp IAMGetT
 		return
 	}
 
-	defer httpResp.Body.Close()
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		c.log.Errorf("3M6x29xVR1zIVPQ %s", err)
@@ -225,13 +225,13 @@ func (c *IamClient) IsTokenValid(tokenId string) (resp IAMResponseSuccess, err e
 		c.log.Errorf("iZ7097HnWDdiC4C %s", err)
 		return
 	}
+	defer httpResp.Body.Close()
 
 	if httpResp.StatusCode != http.StatusOK {
 		c.log.Errorf("3G0S9nvGt6FUM9A non-200 status from %s: %d", uri, httpResp.StatusCode)
 		return
 	}
 
-	defer httpResp.Body.Close()
 	body, err := io.ReadAll(httpResp.Body)
 	if err != nil {
 		c.log.Errorf("8F4p6oT6mg5R4E7 %s", err)
