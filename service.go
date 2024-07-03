@@ -156,5 +156,10 @@ func GetPermissions(ctx context.Context) []string {
 }
 
 func GetUserId(ctx context.Context) string {
-	return fmt.Sprintf("%s", ctx.Value(CtxIamUserId{}))
+	userId := ctx.Value(CtxIamUserId{})
+	if userId == nil {
+		return ""
+	}
+
+	return fmt.Sprintf("%s", userId)
 }
